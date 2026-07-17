@@ -1,0 +1,39 @@
+module watchdog_timer #(
+    parameter TIMEOUT_LIMIT = 50   // number of clk cycles before timeout
+)(
+    input  wire clk,
+    input  wire rst_n,
+    input  wire wdt_en,        // enable/arm the watchdog
+    input  wire kick,          // pulse to reset (feed) the watchdog
+    output reg  timeout,       // stays high once timeout occurs, until reset/re-armed
+    output reg  [31:0] count   // current counter value (for observation/debug)
+);
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            count   <= 32'd0;
+            timeout <= 1'b0;
+        end else begin
+            if (!wdt_en) begin
+                // Watchdog disabled: hold counter at 0, clear timeout
+                count   <= 32'd0;
+                timeout <= 1'b0;
+            end else if (kick) begin
+                // Fed in time: reset counter, clear any timeout
+                count   <= 32'd0;
+                timeout <= 1'b0;
+            end else if (timeout) begin
+                // Already timed out: stay latched until re-kicked or disabled
+                count   <= count;
+                timeout <= 1'b1;
+            end else if (count == TIMEOUT_LIMIT-1) begin
+                // Counter reached limit without being kicked -> timeout
+                timeout <= 1'b1;
+                count   <= count;
+            end else begin
+                count <= count + 1'b1;
+            end
+        end
+    end
+
+endmodule
